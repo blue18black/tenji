@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>点字学習クイズ</title>
+<title>点字学習ゲーム</title>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -442,7 +442,7 @@
   function fitCellsToOneRow(totalCells, groupCount) {
     if (!totalCells) return;
     var rowGap = 6, withinGap = 3, cellPad = 4, dotGap = 3, minDot = 8;
-    var maxDot = window.matchMedia("(pointer: coarse)").matches ? 34 : 30;
+    var maxDot = window.matchMedia("(pointer: coarse)").matches ? 56 : 44;
     var containerWidth = cellsRow.clientWidth || cellsRow.parentElement.clientWidth;
     var totalGaps = (groupCount - 1) * rowGap + (totalCells - groupCount) * withinGap;
     var available = containerWidth - totalGaps - totalCells * (dotGap + 2 * cellPad);
@@ -637,6 +637,14 @@
     return correctGroups.reduce(function (sum, g) { return sum + g.length; }, 0);
   }
 
+  // The input row only ever shows one character (1-2 frames) at a time, so its dots
+  // only need to fit that many cells - not the whole word - and can be drawn much
+  // bigger as a result. Reading mode still shows every character at once and keeps
+  // using totalCellCount()/correctGroups.length for sizing.
+  function maxGroupSize() {
+    return correctGroups.reduce(function (max, g) { return Math.max(max, g.length); }, 1);
+  }
+
   function updateNextBtnLabel() {
     if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
       nextBtn.textContent = "次の文字 →";
@@ -691,7 +699,7 @@
       wordDisplay.classList.remove("hidden");
       renderWordDisplay();
       answerInputWrap.classList.add("hidden");
-      fitCellsToOneRow(totalCellCount(), correctGroups.length);
+      fitCellsToOneRow(maxGroupSize(), 1);
       renderCells(true);
     }
   }
@@ -783,7 +791,11 @@
 
   window.addEventListener("resize", function () {
     if (!quizScreen.classList.contains("hidden") && correctGroups.length) {
-      fitCellsToOneRow(totalCellCount(), correctGroups.length);
+      if (currentMode === "reading") {
+        fitCellsToOneRow(totalCellCount(), correctGroups.length);
+      } else {
+        fitCellsToOneRow(maxGroupSize(), 1);
+      }
     }
   });
 
