@@ -173,6 +173,7 @@
   .mode-buttons .btn-large { width: 100%; }
   .results-title { margin: 0 0 4px; font-size: 20px; color: #111827; }
   .results-score { font-size: 22px; font-weight: 700; color: #4338ca; margin: 4px 0 24px; }
+  .results-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   @media (max-width: 480px) {
     body { padding: 10px; }
     .quiz-card { padding: 16px 12px; }
@@ -194,6 +195,7 @@
     <div class="mode-buttons">
       <button class="btn btn-primary btn-large" data-mode="word">単語モード</button>
       <button class="btn btn-primary btn-large" data-mode="sentence">文章モード</button>
+      <button class="btn btn-primary btn-large" data-mode="number">数字モード</button>
       <button class="btn btn-primary btn-large" data-mode="reading">点字を読むモード</button>
     </div>
   </section>
@@ -231,7 +233,10 @@
   <section id="resultsScreen" class="results-card hidden">
     <h2 class="results-title">結果</h2>
     <p class="results-score" id="resultsScore">10問中 0問正解</p>
-    <button id="homeBtn" class="btn btn-primary btn-large">ホームへ</button>
+    <div class="results-buttons">
+      <button id="retryBtn" class="btn btn-primary btn-large">もう一度</button>
+      <button id="homeBtn" class="btn btn-large">ホームへ</button>
+    </div>
   </section>
 </div>
 
@@ -328,6 +333,26 @@
     "にわで はしる", "くるまに のる", "ねこが なく", "さかなが いる"
   ];
 
+  // Digits reuse the dot patterns of braille letters a-j, preceded by a single
+  // number sign (dots 3,4,5,6) that covers the whole run of digits.
+  var NUMBER_SIGN = [3, 4, 5, 6];
+  var DIGIT_DOTS = {
+    "0": [2,4,5], "1": [1], "2": [1,2], "3": [1,4], "4": [1,4,5],
+    "5": [1,5], "6": [1,2,4], "7": [1,2,4,5], "8": [1,2,5], "9": [2,4]
+  };
+  var NUMBERS = [
+    "3", "7", "9", "12", "15", "28", "34", "50", "63", "79",
+    "100", "123", "156", "200", "365", "480", "500", "999", "1000", "2024"
+  ];
+
+  function numberToCells(numStr) {
+    var cells = [NUMBER_SIGN];
+    Array.from(numStr).forEach(function (ch) {
+      cells.push(DIGIT_DOTS[ch]);
+    });
+    return cells;
+  }
+
   function tokenize(word) {
     var chars = Array.from(word);
     var tokens = [];
@@ -358,6 +383,7 @@
   var quizScreen = document.getElementById("quizScreen");
   var resultsScreen = document.getElementById("resultsScreen");
   var modeButtons = document.querySelectorAll("#homeScreen [data-mode]");
+  var retryBtn = document.getElementById("retryBtn");
   var homeBtn = document.getElementById("homeBtn");
   var homeDuringGameBtn = document.getElementById("homeDuringGameBtn");
   var wordDisplay = document.getElementById("wordDisplay");
@@ -562,7 +588,7 @@
   function loadQuestion() {
     var word = quizWords[questionIndex];
     currentWord = word;
-    correctCells = wordToCells(word);
+    correctCells = (currentMode === "number") ? numberToCells(word) : wordToCells(word);
     checked = false;
     feedback.textContent = "";
     feedback.className = "feedback";
@@ -606,7 +632,13 @@
 
   checkBtn.addEventListener("click", checkAnswer);
   clearBtn.addEventListener("click", clearInput);
-  nextBtn.addEventListener("click", goToNextQuestion);
+  nextBtn.addEventListener("click", function () {
+    if (checked) {
+      goToNextQuestion();
+    } else {
+      checkAnswer();
+    }
+  });
 
   function goHome() {
     quizScreen.classList.add("hidden");
@@ -615,22 +647,25 @@
     homeScreen.classList.remove("hidden");
   }
 
+  function startQuiz(mode) {
+    currentMode = mode;
+    var pool = mode === "sentence" ? SENTENCES : (mode === "number" ? NUMBERS : WORDS);
+    quizWords = shuffle(pool).slice(0, QUIZ_LENGTH);
+    questionIndex = 0;
+    stats = { correct: 0 };
+    correctCountEl.textContent = 0;
+    homeScreen.classList.add("hidden");
+    resultsScreen.classList.add("hidden");
+    header.classList.add("hidden");
+    quizScreen.classList.remove("hidden");
+    loadQuestion();
+  }
+
   modeButtons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      currentMode = btn.dataset.mode;
-      var pool = currentMode === "sentence" ? SENTENCES : WORDS;
-      quizWords = shuffle(pool).slice(0, QUIZ_LENGTH);
-      questionIndex = 0;
-      stats = { correct: 0 };
-      correctCountEl.textContent = 0;
-      homeScreen.classList.add("hidden");
-      resultsScreen.classList.add("hidden");
-      header.classList.add("hidden");
-      quizScreen.classList.remove("hidden");
-      loadQuestion();
-    });
+    btn.addEventListener("click", function () { startQuiz(btn.dataset.mode); });
   });
 
+  retryBtn.addEventListener("click", function () { startQuiz(currentMode); });
   homeBtn.addEventListener("click", goHome);
   homeDuringGameBtn.addEventListener("click", goHome);
 
@@ -645,9 +680,12 @@
     if (quizScreen.classList.contains("hidden")) return;
     var activeEl = document.activeElement;
     if (activeEl === checkBtn || activeEl === clearBtn || activeEl === nextBtn || activeEl === homeDuringGameBtn) return;
-    if (checked || checkBtn.disabled) return;
     e.preventDefault();
-    checkAnswer();
+    if (checked) {
+      goToNextQuestion();
+    } else if (!checkBtn.disabled) {
+      checkAnswer();
+    }
   });
 })();
 </script>
