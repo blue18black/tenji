@@ -6,66 +6,94 @@
 <title>点字学習クイズ</title>
 <style>
   * { box-sizing: border-box; }
+  :root {
+    --dot-size: 30px;
+    --cell-gap: 6px;
+    --cell-pad: 4px;
+    --dot-gap: 3px;
+  }
+  html, body { height: 100%; }
+  html { scrollbar-gutter: stable; }
   body {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, #eef2ff, #fdf4ff);
     font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
     color: #1f2937;
-    padding: 24px;
+    padding: 16px;
   }
   .app { width: 100%; max-width: 720px; }
-  header { text-align: center; margin-bottom: 16px; }
-  h1 { margin: 0 0 4px; font-size: 26px; color: #4338ca; }
-  .subtitle { margin: 0; color: #6b7280; font-size: 14px; }
+  header { text-align: center; margin-bottom: 12px; }
+  h1 { margin: 0 0 4px; font-size: 24px; color: #4338ca; }
+  .subtitle { margin: 0; color: #6b7280; font-size: 13px; }
   .score-bar {
     display: flex;
-    justify-content: center;
-    gap: 24px;
-    margin-bottom: 16px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
     font-size: 14px;
     color: #4338ca;
+  }
+  .score-info { display: flex; gap: 16px; flex-wrap: wrap; }
+  .link-btn {
+    border: none;
+    background: none;
+    color: #4338ca;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .link-btn:hover { background: #eef2ff; }
   }
   .quiz-card {
     background: #fff;
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(79, 70, 229, 0.12);
-    padding: 32px 24px;
+    padding: 22px 18px;
     text-align: center;
   }
   .word-display {
-    font-size: clamp(28px, 9vw, 42px);
+    font-size: clamp(24px, 7vw, 38px);
     font-weight: 700;
-    letter-spacing: 0.1em;
-    margin-bottom: 24px;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
     color: #111827;
     overflow-wrap: anywhere;
   }
   .cells-row, .answer-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
-    gap: 18px;
+    gap: var(--cell-gap);
+    overflow: hidden;
   }
-  .cells-row { margin-bottom: 24px; }
+  .cells-row { margin-bottom: 14px; }
   .braille-cell {
     display: grid;
-    grid-template-columns: repeat(2, 32px);
-    grid-template-rows: repeat(3, 32px);
-    gap: 6px;
-    padding: 10px;
-    border-radius: 14px;
+    grid-template-columns: repeat(2, var(--dot-size));
+    grid-template-rows: repeat(3, var(--dot-size));
+    gap: var(--dot-gap);
+    padding: var(--cell-pad);
+    border-radius: 10px;
     background: #f3f4f6;
+    flex-shrink: 0;
     transition: background .2s, box-shadow .2s;
   }
   .braille-cell.correct { background: #dcfce7; box-shadow: 0 0 0 2px #22c55e inset; }
   .braille-cell.wrong { background: #fee2e2; box-shadow: 0 0 0 2px #ef4444 inset; }
   .dot {
-    width: 32px;
-    height: 32px;
+    width: var(--dot-size);
+    height: var(--dot-size);
     border-radius: 50%;
     border: 2px solid #c7c9d1;
     background: #fff;
@@ -85,26 +113,36 @@
   @media (hover: hover) and (pointer: fine) {
     .dot:hover { border-color: #818cf8; }
   }
-  @media (pointer: coarse) {
-    .braille-cell { grid-template-columns: repeat(2, 40px); grid-template-rows: repeat(3, 40px); }
-    .dot { width: 40px; height: 40px; font-size: 12px; }
-  }
   .cells-row.locked .dot { cursor: default; opacity: .85; }
-  .answer-wrap { margin-top: 4px; }
-  .answer-label { font-size: 13px; color: #6366f1; margin-bottom: 10px; font-weight: 600; }
+  .answer-wrap { margin-top: 2px; }
+  .answer-label { font-size: 12px; color: #6366f1; margin-bottom: 6px; font-weight: 600; }
   .answer-row .dot { cursor: default; }
+  .answer-text { font-size: 22px; font-weight: 700; color: #111827; }
+  .answer-input-wrap { margin: 4px 0 14px; }
+  .text-input {
+    font-size: 18px;
+    padding: 9px 14px;
+    border: 2px solid #c7c9d1;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 220px;
+    text-align: center;
+    font-family: inherit;
+  }
+  .text-input:focus { outline: none; border-color: #4338ca; }
+  .text-input:disabled { background: #f3f4f6; opacity: .8; }
   .controls {
     display: flex;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
-    margin: 20px 0 8px;
+    margin: 14px 0 6px;
   }
   .btn {
     border: none;
     border-radius: 10px;
-    padding: 10px 20px;
-    font-size: 15px;
+    padding: 9px 18px;
+    font-size: 14px;
     cursor: pointer;
     background: #e5e7eb;
     color: #374151;
@@ -118,53 +156,65 @@
     .btn:hover { transform: translateY(-1px); }
     .btn-primary:hover { background: #3730a3; }
   }
-  .feedback { min-height: 26px; font-size: 15px; font-weight: 600; margin-top: 8px; }
+  .feedback { min-height: 20px; font-size: 14px; font-weight: 600; margin-top: 6px; }
   .feedback.correct { color: #16a34a; }
   .feedback.wrong { color: #dc2626; }
   .hidden { display: none; }
-  .home-card {
+  .home-card, .results-card {
     background: #fff;
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(79, 70, 229, 0.12);
-    padding: 40px 24px;
+    padding: 32px 24px;
     text-align: center;
   }
-  .home-text { color: #4b5563; font-size: 15px; line-height: 1.8; margin: 0 0 28px; }
-  .btn-large { padding: 14px 40px; font-size: 17px; }
+  .home-text { color: #4b5563; font-size: 14px; line-height: 1.7; margin: 0 0 22px; }
+  .btn-large { padding: 13px 36px; font-size: 16px; }
+  .mode-buttons { display: flex; flex-direction: column; gap: 10px; }
+  .mode-buttons .btn-large { width: 100%; }
+  .results-title { margin: 0 0 4px; font-size: 20px; color: #111827; }
+  .results-score { font-size: 22px; font-weight: 700; color: #4338ca; margin: 4px 0 24px; }
   @media (max-width: 480px) {
-    body { padding: 12px; }
-    .quiz-card, .home-card { padding: 24px 16px; }
-    .cells-row, .answer-row { gap: 12px; }
-    .braille-cell { padding: 8px; }
-    .btn-large { padding: 14px 32px; }
+    body { padding: 10px; }
+    .quiz-card { padding: 16px 12px; }
+    .home-card, .results-card { padding: 24px 16px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
+  <header id="header">
     <h1>点字学習クイズ</h1>
-    <p class="subtitle">表示された言葉の点字を、マスの点をクリックして入力しよう</p>
+    <p class="subtitle">点字を学んで身につけよう</p>
   </header>
 
   <section id="homeScreen" class="home-card">
     <p class="home-text">
-      表示されたひらがなの言葉を見て、点字のマスをクリックして点を打って答えるクイズです。<br>
-      準備ができたら、下のボタンを押してスタートしましょう。
+      モードを選んでスタートしましょう。全10問です。
     </p>
-    <button id="startBtn" class="btn btn-primary btn-large">スタート</button>
+    <div class="mode-buttons">
+      <button class="btn btn-primary btn-large" data-mode="word">単語モード</button>
+      <button class="btn btn-primary btn-large" data-mode="sentence">文章モード</button>
+      <button class="btn btn-primary btn-large" data-mode="reading">点字を読むモード</button>
+    </div>
   </section>
 
   <div id="quizScreen" class="hidden">
     <div class="score-bar">
-      <span>正解: <strong id="correctCount">0</strong></span>
-      <span>出題数: <strong id="totalCount">0</strong></span>
+      <button id="homeDuringGameBtn" class="link-btn">← ホームへ</button>
+      <div class="score-info">
+        <span>問題: <strong id="questionNum">1</strong> / 10</span>
+        <span>正解: <strong id="correctCount">0</strong></span>
+      </div>
     </div>
 
     <main class="quiz-card">
       <div class="word-display" id="wordDisplay"></div>
 
       <div class="cells-row" id="cellsRow"></div>
+
+      <div id="answerInputWrap" class="answer-input-wrap hidden">
+        <input type="text" id="answerInput" class="text-input" placeholder="ひらがなで入力" lang="ja" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      </div>
 
       <div id="answerWrap"></div>
 
@@ -177,6 +227,12 @@
       <div class="feedback" id="feedback"></div>
     </main>
   </div>
+
+  <section id="resultsScreen" class="results-card hidden">
+    <h2 class="results-title">結果</h2>
+    <p class="results-score" id="resultsScore">10問中 0問正解</p>
+    <button id="homeBtn" class="btn btn-primary btn-large">ホームへ</button>
+  </section>
 </div>
 
 <script>
@@ -261,6 +317,17 @@
     "ゆき","かみなり","たいふう","やったー","ありがとう"
   ];
 
+  // Sentences use a space between words, just like real Japanese braille (which has no
+  // kanji to mark word boundaries). A space maps to a single blank cell below.
+  TOKENS[" "] = [[]];
+  var SENTENCES = [
+    "いぬが ねる", "そらが あおい", "はなが さく", "あめが ふる",
+    "とりが うたう", "かぜが ふく", "ゆきが つもる", "ほしが ひかる",
+    "とりが とぶ", "うちへ いく", "ほんを よむ", "えを かく",
+    "うたを うたう", "みずを のむ", "もちを たべる", "やまに のぼる",
+    "にわで はしる", "くるまに のる", "ねこが なく", "さかなが いる"
+  ];
+
   function tokenize(word) {
     var chars = Array.from(word);
     var tokens = [];
@@ -284,33 +351,61 @@
   }
 
   var DOT_ORDER = [1, 4, 2, 5, 3, 6];
+  var QUIZ_LENGTH = 10;
 
+  var header = document.getElementById("header");
   var homeScreen = document.getElementById("homeScreen");
   var quizScreen = document.getElementById("quizScreen");
-  var startBtn = document.getElementById("startBtn");
+  var resultsScreen = document.getElementById("resultsScreen");
+  var modeButtons = document.querySelectorAll("#homeScreen [data-mode]");
+  var homeBtn = document.getElementById("homeBtn");
+  var homeDuringGameBtn = document.getElementById("homeDuringGameBtn");
   var wordDisplay = document.getElementById("wordDisplay");
   var cellsRow = document.getElementById("cellsRow");
+  var answerInputWrap = document.getElementById("answerInputWrap");
+  var answerInput = document.getElementById("answerInput");
   var answerWrap = document.getElementById("answerWrap");
   var feedback = document.getElementById("feedback");
   var checkBtn = document.getElementById("checkBtn");
   var clearBtn = document.getElementById("clearBtn");
   var nextBtn = document.getElementById("nextBtn");
+  var questionNumEl = document.getElementById("questionNum");
   var correctCountEl = document.getElementById("correctCount");
-  var totalCountEl = document.getElementById("totalCount");
+  var resultsScoreEl = document.getElementById("resultsScore");
 
   var correctCells = [];
   var userCells = [];
   var checked = false;
-  var prevWord = "";
-  var stats = { correct: 0, total: 0 };
+  var quizWords = [];
+  var questionIndex = 0;
+  var stats = { correct: 0 };
+  var currentMode = "word";
+  var currentWord = "";
 
-  function pickWord() {
-    var w;
-    do {
-      w = WORDS[Math.floor(Math.random() * WORDS.length)];
-    } while (w === prevWord && WORDS.length > 1);
-    prevWord = w;
-    return w;
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  // Recomputes --dot-size so that `cellCount` braille cells always fit on a single
+  // row within the quiz card, regardless of word length or screen width.
+  function fitCellsToOneRow(cellCount) {
+    if (!cellCount) return;
+    var rowGap = 6, cellPad = 4, dotGap = 3, minDot = 8;
+    var maxDot = window.matchMedia("(pointer: coarse)").matches ? 34 : 30;
+    var containerWidth = cellsRow.clientWidth || cellsRow.parentElement.clientWidth;
+    var available = containerWidth - (cellCount - 1) * rowGap - cellCount * (dotGap + 2 * cellPad);
+    var dot = Math.floor(available / (cellCount * 2));
+    dot = Math.max(minDot, Math.min(maxDot, dot));
+    var root = document.documentElement.style;
+    root.setProperty("--dot-size", dot + "px");
+    root.setProperty("--cell-gap", rowGap + "px");
+    root.setProperty("--cell-pad", cellPad + "px");
+    root.setProperty("--dot-gap", dotGap + "px");
   }
 
   function buildCellElement(dotsOnSet, opts) {
@@ -338,9 +433,15 @@
     return cell;
   }
 
-  function renderCells() {
+  function renderCells(interactive) {
     cellsRow.innerHTML = "";
     cellsRow.classList.remove("locked");
+    if (!interactive) {
+      correctCells.forEach(function (dots) {
+        cellsRow.appendChild(buildCellElement(new Set(dots), { interactive: false }));
+      });
+      return;
+    }
     userCells = correctCells.map(function () { return new Set(); });
     correctCells.forEach(function (_, idx) {
       var cell = buildCellElement(new Set(), {
@@ -386,28 +487,51 @@
     answerWrap.appendChild(wrap);
   }
 
+  function showTextAnswer() {
+    answerWrap.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "answer-wrap";
+    var label = document.createElement("div");
+    label.className = "answer-label";
+    label.textContent = "正しい答え";
+    var text = document.createElement("div");
+    text.className = "answer-text";
+    text.textContent = currentWord;
+    wrap.appendChild(label);
+    wrap.appendChild(text);
+    answerWrap.appendChild(wrap);
+  }
+
   function checkAnswer() {
     if (checked) return;
     checked = true;
-    cellsRow.classList.add("locked");
-    var allCorrect = true;
-    var cellEls = cellsRow.querySelectorAll(".braille-cell");
-    cellEls.forEach(function (cellEl, idx) {
-      var ok = setsEqual(correctCells[idx], userCells[idx]);
-      cellEl.classList.add(ok ? "correct" : "wrong");
-      if (!ok) allCorrect = false;
-    });
-    stats.total++;
-    if (allCorrect) stats.correct++;
-    correctCountEl.textContent = stats.correct;
-    totalCountEl.textContent = stats.total;
+    var allCorrect;
+    if (currentMode === "reading") {
+      answerInput.disabled = true;
+      allCorrect = answerInput.value.trim() === currentWord;
+    } else {
+      cellsRow.classList.add("locked");
+      allCorrect = true;
+      var cellEls = cellsRow.querySelectorAll(".braille-cell");
+      cellEls.forEach(function (cellEl, idx) {
+        var ok = setsEqual(correctCells[idx], userCells[idx]);
+        cellEl.classList.add(ok ? "correct" : "wrong");
+        if (!ok) allCorrect = false;
+      });
+    }
     if (allCorrect) {
+      stats.correct++;
+      correctCountEl.textContent = stats.correct;
       feedback.textContent = "正解です!";
       feedback.className = "feedback correct";
     } else {
-      feedback.textContent = "不正解…下に正しい点字を表示しています。";
+      feedback.textContent = "不正解…下に正しい答えを表示しています。";
       feedback.className = "feedback wrong";
-      showAnswer();
+      if (currentMode === "reading") {
+        showTextAnswer();
+      } else {
+        showAnswer();
+      }
     }
     checkBtn.disabled = true;
   }
@@ -418,6 +542,12 @@
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
+    if (currentMode === "reading") {
+      answerInput.disabled = false;
+      answerInput.value = "";
+      answerInput.focus();
+      return;
+    }
     cellsRow.classList.remove("locked");
     cellsRow.querySelectorAll(".braille-cell").forEach(function (c) {
       c.classList.remove("correct", "wrong");
@@ -429,29 +559,95 @@
     userCells = correctCells.map(function () { return new Set(); });
   }
 
-  function loadNewWord() {
-    var word = pickWord();
-    wordDisplay.textContent = word;
+  function loadQuestion() {
+    var word = quizWords[questionIndex];
+    currentWord = word;
     correctCells = wordToCells(word);
     checked = false;
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
     checkBtn.disabled = false;
-    renderCells();
+    questionNumEl.textContent = questionIndex + 1;
+    nextBtn.textContent = (questionIndex === QUIZ_LENGTH - 1) ? "結果を見る" : "次の問題 →";
+
+    if (currentMode === "reading") {
+      wordDisplay.classList.add("hidden");
+      answerInputWrap.classList.remove("hidden");
+      answerInput.disabled = false;
+      answerInput.value = "";
+      fitCellsToOneRow(correctCells.length);
+      renderCells(false);
+      window.setTimeout(function () { answerInput.focus(); }, 0);
+    } else {
+      wordDisplay.classList.remove("hidden");
+      wordDisplay.textContent = word;
+      answerInputWrap.classList.add("hidden");
+      fitCellsToOneRow(correctCells.length);
+      renderCells(true);
+    }
+  }
+
+  function showResults() {
+    quizScreen.classList.add("hidden");
+    header.classList.remove("hidden");
+    resultsScoreEl.textContent = QUIZ_LENGTH + "問中 " + stats.correct + "問正解";
+    resultsScreen.classList.remove("hidden");
+  }
+
+  function goToNextQuestion() {
+    questionIndex++;
+    if (questionIndex >= QUIZ_LENGTH) {
+      showResults();
+    } else {
+      loadQuestion();
+    }
   }
 
   checkBtn.addEventListener("click", checkAnswer);
   clearBtn.addEventListener("click", clearInput);
-  nextBtn.addEventListener("click", loadNewWord);
+  nextBtn.addEventListener("click", goToNextQuestion);
 
-  startBtn.addEventListener("click", function () {
-    homeScreen.classList.add("hidden");
-    quizScreen.classList.remove("hidden");
-    stats = { correct: 0, total: 0 };
-    correctCountEl.textContent = stats.correct;
-    totalCountEl.textContent = stats.total;
-    loadNewWord();
+  function goHome() {
+    quizScreen.classList.add("hidden");
+    resultsScreen.classList.add("hidden");
+    header.classList.remove("hidden");
+    homeScreen.classList.remove("hidden");
+  }
+
+  modeButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      currentMode = btn.dataset.mode;
+      var pool = currentMode === "sentence" ? SENTENCES : WORDS;
+      quizWords = shuffle(pool).slice(0, QUIZ_LENGTH);
+      questionIndex = 0;
+      stats = { correct: 0 };
+      correctCountEl.textContent = 0;
+      homeScreen.classList.add("hidden");
+      resultsScreen.classList.add("hidden");
+      header.classList.add("hidden");
+      quizScreen.classList.remove("hidden");
+      loadQuestion();
+    });
+  });
+
+  homeBtn.addEventListener("click", goHome);
+  homeDuringGameBtn.addEventListener("click", goHome);
+
+  window.addEventListener("resize", function () {
+    if (!quizScreen.classList.contains("hidden") && correctCells.length) {
+      fitCellsToOneRow(correctCells.length);
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    if (quizScreen.classList.contains("hidden")) return;
+    var activeEl = document.activeElement;
+    if (activeEl === checkBtn || activeEl === clearBtn || activeEl === nextBtn || activeEl === homeDuringGameBtn) return;
+    if (checked || checkBtn.disabled) return;
+    e.preventDefault();
+    checkAnswer();
   });
 })();
 </script>
