@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点字学習クイズ</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #eef2ff, #fdf4ff);
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    color: #1f2937;
+    padding: 24px;
+  }
+  .app { width: 100%; max-width: 720px; }
+  header { text-align: center; margin-bottom: 16px; }
+  h1 { margin: 0 0 4px; font-size: 26px; color: #4338ca; }
+  .subtitle { margin: 0; color: #6b7280; font-size: 14px; }
+  .score-bar {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: #4338ca;
+  }
+  .quiz-card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(79, 70, 229, 0.12);
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .word-display {
+    font-size: clamp(28px, 9vw, 42px);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 24px;
+    color: #111827;
+    overflow-wrap: anywhere;
+  }
+  .cells-row, .answer-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+  }
+  .cells-row { margin-bottom: 24px; }
+  .braille-cell {
+    display: grid;
+    grid-template-columns: repeat(2, 32px);
+    grid-template-rows: repeat(3, 32px);
+    gap: 6px;
+    padding: 10px;
+    border-radius: 14px;
+    background: #f3f4f6;
+    transition: background .2s, box-shadow .2s;
+  }
+  .braille-cell.correct { background: #dcfce7; box-shadow: 0 0 0 2px #22c55e inset; }
+  .braille-cell.wrong { background: #fee2e2; box-shadow: 0 0 0 2px #ef4444 inset; }
+  .dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #c7c9d1;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #9ca3af;
+    padding: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .dot.on { background: #4338ca; border-color: #4338ca; color: transparent; }
+  .dot:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .dot:hover { border-color: #818cf8; }
+  }
+  @media (pointer: coarse) {
+    .braille-cell { grid-template-columns: repeat(2, 40px); grid-template-rows: repeat(3, 40px); }
+    .dot { width: 40px; height: 40px; font-size: 12px; }
+  }
+  .cells-row.locked .dot { cursor: default; opacity: .85; }
+  .answer-wrap { margin-top: 4px; }
+  .answer-label { font-size: 13px; color: #6366f1; margin-bottom: 10px; font-weight: 600; }
+  .answer-row .dot { cursor: default; }
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 20px 0 8px;
+  }
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 15px;
+    cursor: pointer;
+    background: #e5e7eb;
+    color: #374151;
+    transition: transform .1s, background .2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-primary { background: #4338ca; color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary:hover { background: #3730a3; }
+  }
+  .feedback { min-height: 26px; font-size: 15px; font-weight: 600; margin-top: 8px; }
+  .feedback.correct { color: #16a34a; }
+  .feedback.wrong { color: #dc2626; }
+  .hidden { display: none; }
+  .home-card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(79, 70, 229, 0.12);
+    padding: 40px 24px;
+    text-align: center;
+  }
+  .home-text { color: #4b5563; font-size: 15px; line-height: 1.8; margin: 0 0 28px; }
+  .btn-large { padding: 14px 40px; font-size: 17px; }
+  @media (max-width: 480px) {
+    body { padding: 12px; }
+    .quiz-card, .home-card { padding: 24px 16px; }
+    .cells-row, .answer-row { gap: 12px; }
+    .braille-cell { padding: 8px; }
+    .btn-large { padding: 14px 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>点字学習クイズ</h1>
+    <p class="subtitle">表示された言葉の点字を、マスの点をクリックして入力しよう</p>
+  </header>
+
+  <section id="homeScreen" class="home-card">
+    <p class="home-text">
+      表示されたひらがなの言葉を見て、点字のマスをクリックして点を打って答えるクイズです。<br>
+      準備ができたら、下のボタンを押してスタートしましょう。
+    </p>
+    <button id="startBtn" class="btn btn-primary btn-large">スタート</button>
+  </section>
+
+  <div id="quizScreen" class="hidden">
+    <div class="score-bar">
+      <span>正解: <strong id="correctCount">0</strong></span>
+      <span>出題数: <strong id="totalCount">0</strong></span>
+    </div>
+
+    <main class="quiz-card">
+      <div class="word-display" id="wordDisplay"></div>
+
+      <div class="cells-row" id="cellsRow"></div>
+
+      <div id="answerWrap"></div>
+
+      <div class="controls">
+        <button id="checkBtn" class="btn btn-primary">答え合わせ</button>
+        <button id="clearBtn" class="btn">クリア</button>
+        <button id="nextBtn" class="btn">次の問題 →</button>
+      </div>
+
+      <div class="feedback" id="feedback"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 1,2,3 are the left column dots (top to bottom), 4,5,6 are the right column dots.
+  var BASE = {
+    "あ": [1], "い": [1,2], "う": [1,4], "え": [1,2,4], "お": [2,4],
+    "か": [1,6], "き": [1,2,6], "く": [1,4,6], "け": [1,2,4,6], "こ": [2,4,6],
+    "さ": [1,5,6], "し": [1,2,5,6], "す": [1,4,5,6], "せ": [1,2,4,5,6], "そ": [2,4,5,6],
+    "た": [1,3,5], "ち": [1,2,3,5], "つ": [1,3,4,5], "て": [1,2,3,4,5], "と": [2,3,4,5],
+    "な": [1,3], "に": [1,2,3], "ぬ": [1,3,4], "ね": [1,2,3,4], "の": [2,3,4],
+    "は": [1,3,6], "ひ": [1,2,3,6], "ふ": [1,3,4,6], "へ": [1,2,3,4,6], "ほ": [2,3,4,6],
+    "ま": [1,3,5,6], "み": [1,2,3,5,6], "む": [1,3,4,5,6], "め": [1,2,3,4,5,6], "も": [2,3,4,5,6],
+    "や": [3,4], "ゆ": [3,4,6], "よ": [3,4,5],
+    "ら": [1,5], "り": [1,2,5], "る": [1,4,5], "れ": [1,2,4,5], "ろ": [2,4,5],
+    "わ": [3], "を": [3,5], "ん": [3,5,6]
+  };
+  var CHOON = [2,5];   // ー
+  var SOKUON = [2];    // っ
+  var DAKUTEN = [5];
+  var HANDAKUTEN = [6];
+  var YOUON = [4];
+  var YOUDAKU = [4,5];
+  var YOUHANDAKU = [4,6];
+
+  function plain(ch) { return [BASE[ch]]; }
+  function withMarker(marker, ch) { return [marker, BASE[ch]]; }
+
+  var TOKENS = {};
+  Object.keys(BASE).forEach(function (ch) { TOKENS[ch] = plain(ch); });
+  TOKENS["ー"] = [CHOON];
+  TOKENS["っ"] = [SOKUON];
+
+  var DAKUTEN_MAP = {
+    "が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ",
+    "ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ",
+    "だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と",
+    "ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ"
+  };
+  Object.keys(DAKUTEN_MAP).forEach(function (ch) {
+    TOKENS[ch] = withMarker(DAKUTEN, DAKUTEN_MAP[ch]);
+  });
+
+  var HANDAKUTEN_MAP = { "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ" };
+  Object.keys(HANDAKUTEN_MAP).forEach(function (ch) {
+    TOKENS[ch] = withMarker(HANDAKUTEN, HANDAKUTEN_MAP[ch]);
+  });
+
+  var YOUON_ROWS = {
+    "き": ["か","く","こ"], "し": ["さ","す","そ"], "ち": ["た","つ","と"],
+    "に": ["な","ぬ","の"], "ひ": ["は","ふ","ほ"], "み": ["ま","む","も"], "り": ["ら","る","ろ"]
+  };
+  var SMALL_Y = ["ゃ","ゅ","ょ"];
+  Object.keys(YOUON_ROWS).forEach(function (lead) {
+    var rowBases = YOUON_ROWS[lead];
+    SMALL_Y.forEach(function (smallY, i) {
+      TOKENS[lead + smallY] = withMarker(YOUON, rowBases[i]);
+    });
+  });
+
+  var YOUDAKU_ROWS = { "ぎ": ["か","く","こ"], "じ": ["さ","す","そ"], "ぢ": ["た","つ","と"], "び": ["は","ふ","ほ"] };
+  Object.keys(YOUDAKU_ROWS).forEach(function (lead) {
+    var rowBases = YOUDAKU_ROWS[lead];
+    SMALL_Y.forEach(function (smallY, i) {
+      TOKENS[lead + smallY] = withMarker(YOUDAKU, rowBases[i]);
+    });
+  });
+
+  var YOUHANDAKU_ROWS = { "ぴ": ["は","ふ","ほ"] };
+  Object.keys(YOUHANDAKU_ROWS).forEach(function (lead) {
+    var rowBases = YOUHANDAKU_ROWS[lead];
+    SMALL_Y.forEach(function (smallY, i) {
+      TOKENS[lead + smallY] = withMarker(YOUHANDAKU, rowBases[i]);
+    });
+  });
+
+  var WORDS = [
+    "いぬ","ねこ","うさぎ","さかな","とり","ぞう","きりん","ぱんだ","らいおん","かえる",
+    "つくえ","えんぴつ","ほん","かばん","がっこう","せんせい","としょかん","きょうしつ","でんしゃ","じてんしゃ",
+    "ひこうき","くるま","しんぶん","たまご","りんご","ぶどう","みかん","すいか","たんじょうび","ともだち",
+    "かぞく","げんき","ひゃく","しゃしん","きゃべつ","たんぽぽ","たいよう","つき","ほし","あめ",
+    "ゆき","かみなり","たいふう","やったー","ありがとう"
+  ];
+
+  function tokenize(word) {
+    var chars = Array.from(word);
+    var tokens = [];
+    var i = 0;
+    while (i < chars.length) {
+      var two = chars.slice(i, i + 2).join("");
+      if (TOKENS[two]) { tokens.push(two); i += 2; continue; }
+      var one = chars[i];
+      if (TOKENS[one]) { tokens.push(one); i += 1; continue; }
+      i += 1; // unknown character, skip
+    }
+    return tokens;
+  }
+
+  function wordToCells(word) {
+    var cells = [];
+    tokenize(word).forEach(function (t) {
+      TOKENS[t].forEach(function (cell) { cells.push(cell); });
+    });
+    return cells;
+  }
+
+  var DOT_ORDER = [1, 4, 2, 5, 3, 6];
+
+  var homeScreen = document.getElementById("homeScreen");
+  var quizScreen = document.getElementById("quizScreen");
+  var startBtn = document.getElementById("startBtn");
+  var wordDisplay = document.getElementById("wordDisplay");
+  var cellsRow = document.getElementById("cellsRow");
+  var answerWrap = document.getElementById("answerWrap");
+  var feedback = document.getElementById("feedback");
+  var checkBtn = document.getElementById("checkBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var correctCountEl = document.getElementById("correctCount");
+  var totalCountEl = document.getElementById("totalCount");
+
+  var correctCells = [];
+  var userCells = [];
+  var checked = false;
+  var prevWord = "";
+  var stats = { correct: 0, total: 0 };
+
+  function pickWord() {
+    var w;
+    do {
+      w = WORDS[Math.floor(Math.random() * WORDS.length)];
+    } while (w === prevWord && WORDS.length > 1);
+    prevWord = w;
+    return w;
+  }
+
+  function buildCellElement(dotsOnSet, opts) {
+    opts = opts || {};
+    var cell = document.createElement("div");
+    cell.className = "braille-cell";
+    DOT_ORDER.forEach(function (dotNum) {
+      var isOn = dotsOnSet.has(dotNum);
+      if (opts.interactive) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dot" + (isOn ? " on" : "");
+        btn.textContent = dotNum;
+        btn.setAttribute("aria-pressed", isOn ? "true" : "false");
+        btn.setAttribute("aria-label", (opts.index + 1) + "マス目 " + dotNum + "の点");
+        btn.addEventListener("click", opts.onToggle.bind(null, dotNum, btn));
+        cell.appendChild(btn);
+      } else {
+        var d = document.createElement("div");
+        d.className = "dot" + (isOn ? " on" : "");
+        d.textContent = dotNum;
+        cell.appendChild(d);
+      }
+    });
+    return cell;
+  }
+
+  function renderCells() {
+    cellsRow.innerHTML = "";
+    cellsRow.classList.remove("locked");
+    userCells = correctCells.map(function () { return new Set(); });
+    correctCells.forEach(function (_, idx) {
+      var cell = buildCellElement(new Set(), {
+        interactive: true,
+        index: idx,
+        onToggle: function (dotNum, btn) {
+          if (checked) return;
+          var set = userCells[idx];
+          if (set.has(dotNum)) {
+            set.delete(dotNum);
+            btn.classList.remove("on");
+            btn.setAttribute("aria-pressed", "false");
+          } else {
+            set.add(dotNum);
+            btn.classList.add("on");
+            btn.setAttribute("aria-pressed", "true");
+          }
+        }
+      });
+      cellsRow.appendChild(cell);
+    });
+  }
+
+  function setsEqual(arr, set) {
+    if (arr.length !== set.size) return false;
+    return arr.every(function (d) { return set.has(d); });
+  }
+
+  function showAnswer() {
+    answerWrap.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "answer-wrap";
+    var label = document.createElement("div");
+    label.className = "answer-label";
+    label.textContent = "正しい点字";
+    wrap.appendChild(label);
+    var row = document.createElement("div");
+    row.className = "answer-row";
+    correctCells.forEach(function (dots) {
+      row.appendChild(buildCellElement(new Set(dots), { interactive: false }));
+    });
+    wrap.appendChild(row);
+    answerWrap.appendChild(wrap);
+  }
+
+  function checkAnswer() {
+    if (checked) return;
+    checked = true;
+    cellsRow.classList.add("locked");
+    var allCorrect = true;
+    var cellEls = cellsRow.querySelectorAll(".braille-cell");
+    cellEls.forEach(function (cellEl, idx) {
+      var ok = setsEqual(correctCells[idx], userCells[idx]);
+      cellEl.classList.add(ok ? "correct" : "wrong");
+      if (!ok) allCorrect = false;
+    });
+    stats.total++;
+    if (allCorrect) stats.correct++;
+    correctCountEl.textContent = stats.correct;
+    totalCountEl.textContent = stats.total;
+    if (allCorrect) {
+      feedback.textContent = "正解です!";
+      feedback.className = "feedback correct";
+    } else {
+      feedback.textContent = "不正解…下に正しい点字を表示しています。";
+      feedback.className = "feedback wrong";
+      showAnswer();
+    }
+    checkBtn.disabled = true;
+  }
+
+  function clearInput() {
+    checked = false;
+    checkBtn.disabled = false;
+    feedback.textContent = "";
+    feedback.className = "feedback";
+    answerWrap.innerHTML = "";
+    cellsRow.classList.remove("locked");
+    cellsRow.querySelectorAll(".braille-cell").forEach(function (c) {
+      c.classList.remove("correct", "wrong");
+    });
+    cellsRow.querySelectorAll(".dot").forEach(function (d) {
+      d.classList.remove("on");
+      d.setAttribute("aria-pressed", "false");
+    });
+    userCells = correctCells.map(function () { return new Set(); });
+  }
+
+  function loadNewWord() {
+    var word = pickWord();
+    wordDisplay.textContent = word;
+    correctCells = wordToCells(word);
+    checked = false;
+    feedback.textContent = "";
+    feedback.className = "feedback";
+    answerWrap.innerHTML = "";
+    checkBtn.disabled = false;
+    renderCells();
+  }
+
+  checkBtn.addEventListener("click", checkAnswer);
+  clearBtn.addEventListener("click", clearInput);
+  nextBtn.addEventListener("click", loadNewWord);
+
+  startBtn.addEventListener("click", function () {
+    homeScreen.classList.add("hidden");
+    quizScreen.classList.remove("hidden");
+    stats = { correct: 0, total: 0 };
+    correctCountEl.textContent = stats.correct;
+    totalCountEl.textContent = stats.total;
+    loadNewWord();
+  });
+})();
+</script>
+</body>
+</html>
