@@ -9,6 +9,7 @@
   :root {
     --dot-size: 30px;
     --cell-gap: 6px;
+    --within-gap: 3px;
     --cell-pad: 4px;
     --dot-gap: 3px;
   }
@@ -41,19 +42,19 @@
   }
   .score-info { display: flex; gap: 16px; flex-wrap: wrap; }
   .link-btn {
-    border: none;
-    background: none;
+    border: 1px solid #c7d2fe;
+    background: #eef2ff;
     color: #4338ca;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
   @media (hover: hover) and (pointer: fine) {
-    .link-btn:hover { background: #eef2ff; }
+    .link-btn:hover { background: #e0e7ff; }
   }
   .quiz-card {
     background: #fff;
@@ -70,6 +71,7 @@
     color: #111827;
     overflow-wrap: anywhere;
   }
+  .word-display .active-char { color: #dc2626; }
   .cells-row, .answer-row {
     display: flex;
     flex-wrap: nowrap;
@@ -78,6 +80,7 @@
     overflow: hidden;
   }
   .cells-row { margin-bottom: 14px; }
+  .cell-group { display: flex; gap: var(--within-gap); flex-shrink: 0; }
   .braille-cell {
     display: grid;
     grid-template-columns: repeat(2, var(--dot-size));
@@ -107,13 +110,13 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    outline: none;
   }
   .dot.on { background: #4338ca; border-color: #4338ca; color: transparent; }
-  .dot:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
   @media (hover: hover) and (pointer: fine) {
     .dot:hover { border-color: #818cf8; }
   }
-  .cells-row.locked .dot { cursor: default; opacity: .85; }
+  .braille-cell.locked-cell .dot { cursor: default; opacity: .85; }
   .answer-wrap { margin-top: 2px; }
   .answer-label { font-size: 12px; color: #6366f1; margin-bottom: 6px; font-weight: 600; }
   .answer-row .dot { cursor: default; }
@@ -345,12 +348,17 @@
     "100", "123", "156", "200", "365", "480", "500", "999", "1000", "2024"
   ];
 
-  function numberToCells(numStr) {
-    var cells = [NUMBER_SIGN];
-    Array.from(numStr).forEach(function (ch) {
-      cells.push(DIGIT_DOTS[ch]);
-    });
-    return cells;
+  // Each group is the set of braille cells for one input character: 1 cell for a
+  // plain kana/digit, 2 cells for a dakuten/handakuten/youon-style combination.
+  // The number sign has no digit of its own, so it's paired with the first digit
+  // into one 2-frame group, just like a dakuten marker pairs with its base kana.
+  function numberToGroups(numStr) {
+    var digits = Array.from(numStr);
+    var groups = [[NUMBER_SIGN, DIGIT_DOTS[digits[0]]]];
+    for (var i = 1; i < digits.length; i++) {
+      groups.push([DIGIT_DOTS[digits[i]]]);
+    }
+    return groups;
   }
 
   function tokenize(word) {
@@ -367,12 +375,19 @@
     return tokens;
   }
 
-  function wordToCells(word) {
-    var cells = [];
-    tokenize(word).forEach(function (t) {
-      TOKENS[t].forEach(function (cell) { cells.push(cell); });
-    });
-    return cells;
+  // Spaces between words (sentence mode) are skipped entirely - they're shown in the
+  // word display for readability but never need to be struck in braille.
+  function wordToGroups(word) {
+    return tokenize(word).filter(function (t) { return t !== " "; }).map(function (t) { return TOKENS[t]; });
+  }
+
+  // Text shown in the word display, split so each piece lines up 1-to-1 with the
+  // matching entry in correctGroups (used to highlight the character being input).
+  function wordToDisplayTokens(word) {
+    return tokenize(word);
+  }
+  function numberToDisplayTokens(numStr) {
+    return Array.from(numStr);
   }
 
   var DOT_ORDER = [1, 4, 2, 5, 3, 6];
@@ -399,7 +414,8 @@
   var correctCountEl = document.getElementById("correctCount");
   var resultsScoreEl = document.getElementById("resultsScore");
 
-  var correctCells = [];
+  var correctGroups = [];
+  var displayTokens = [];
   var userCells = [];
   var checked = false;
   var quizWords = [];
@@ -407,6 +423,8 @@
   var stats = { correct: 0 };
   var currentMode = "word";
   var currentWord = "";
+  var activeGroupIndex = 0;
+  var wordHasMistake = false;
 
   function shuffle(arr) {
     var a = arr.slice();
@@ -417,21 +435,25 @@
     return a;
   }
 
-  // Recomputes --dot-size so that `cellCount` braille cells always fit on a single
-  // row within the quiz card, regardless of word length or screen width.
-  function fitCellsToOneRow(cellCount) {
-    if (!cellCount) return;
-    var rowGap = 6, cellPad = 4, dotGap = 3, minDot = 8;
+  // Recomputes --dot-size so that all braille cells always fit on a single row within
+  // the quiz card, regardless of word length or screen width. Cells belonging to the
+  // same character (group) sit closer together (--within-gap) than cells from
+  // different characters (--cell-gap).
+  function fitCellsToOneRow(totalCells, groupCount) {
+    if (!totalCells) return;
+    var rowGap = 6, withinGap = 3, cellPad = 4, dotGap = 3, minDot = 8;
     var maxDot = window.matchMedia("(pointer: coarse)").matches ? 34 : 30;
     var containerWidth = cellsRow.clientWidth || cellsRow.parentElement.clientWidth;
-    var available = containerWidth - (cellCount - 1) * rowGap - cellCount * (dotGap + 2 * cellPad);
-    var dot = Math.floor(available / (cellCount * 2));
+    var totalGaps = (groupCount - 1) * rowGap + (totalCells - groupCount) * withinGap;
+    var available = containerWidth - totalGaps - totalCells * (dotGap + 2 * cellPad);
+    var dot = Math.floor(available / (totalCells * 2));
     dot = Math.max(minDot, Math.min(maxDot, dot));
     var root = document.documentElement.style;
     root.setProperty("--dot-size", dot + "px");
     root.setProperty("--cell-gap", rowGap + "px");
     root.setProperty("--cell-pad", cellPad + "px");
     root.setProperty("--dot-gap", dotGap + "px");
+    root.setProperty("--within-gap", withinGap + "px");
   }
 
   function buildCellElement(dotsOnSet, opts) {
@@ -446,7 +468,7 @@
         btn.className = "dot" + (isOn ? " on" : "");
         btn.textContent = dotNum;
         btn.setAttribute("aria-pressed", isOn ? "true" : "false");
-        btn.setAttribute("aria-label", (opts.index + 1) + "マス目 " + dotNum + "の点");
+        btn.setAttribute("aria-label", (opts.label || "") + dotNum + "の点");
         btn.addEventListener("click", opts.onToggle.bind(null, dotNum, btn));
         cell.appendChild(btn);
       } else {
@@ -459,23 +481,19 @@
     return cell;
   }
 
-  function renderCells(interactive) {
-    cellsRow.innerHTML = "";
-    cellsRow.classList.remove("locked");
-    if (!interactive) {
-      correctCells.forEach(function (dots) {
-        cellsRow.appendChild(buildCellElement(new Set(dots), { interactive: false }));
-      });
-      return;
-    }
-    userCells = correctCells.map(function () { return new Set(); });
-    correctCells.forEach(function (_, idx) {
+  // Builds and appends the frames for just one character (1 cell for plain kana,
+  // 2 cells for a dakuten/handakuten/youon-style combination) to the row.
+  function appendGroupElement(gIdx) {
+    var group = correctGroups[gIdx];
+    var groupEl = document.createElement("div");
+    groupEl.className = "cell-group";
+    group.forEach(function (_, cIdx) {
       var cell = buildCellElement(new Set(), {
         interactive: true,
-        index: idx,
+        label: (gIdx + 1) + "文字目" + (cIdx + 1) + "マス目 ",
         onToggle: function (dotNum, btn) {
-          if (checked) return;
-          var set = userCells[idx];
+          if (gIdx !== activeGroupIndex || checked) return;
+          var set = userCells[gIdx][cIdx];
           if (set.has(dotNum)) {
             set.delete(dotNum);
             btn.classList.remove("on");
@@ -487,8 +505,31 @@
           }
         }
       });
-      cellsRow.appendChild(cell);
+      groupEl.appendChild(cell);
     });
+    cellsRow.appendChild(groupEl);
+    return groupEl;
+  }
+
+  // Cells belonging to the same character are wrapped in one .cell-group so the
+  // number of frames shown always matches how many cells that character needs.
+  // The input row only ever holds the current character; finished characters are
+  // discarded once the player advances past them (see advanceToNextGroup).
+  function renderCells(interactive) {
+    cellsRow.innerHTML = "";
+    if (!interactive) {
+      correctGroups.forEach(function (group) {
+        var groupEl = document.createElement("div");
+        groupEl.className = "cell-group";
+        group.forEach(function (dots) {
+          groupEl.appendChild(buildCellElement(new Set(dots), { interactive: false }));
+        });
+        cellsRow.appendChild(groupEl);
+      });
+      return;
+    }
+    userCells = correctGroups.map(function (group) { return group.map(function () { return new Set(); }); });
+    appendGroupElement(activeGroupIndex);
   }
 
   function setsEqual(arr, set) {
@@ -496,7 +537,7 @@
     return arr.every(function (d) { return set.has(d); });
   }
 
-  function showAnswer() {
+  function showAnswerForGroup(gIdx) {
     answerWrap.innerHTML = "";
     var wrap = document.createElement("div");
     wrap.className = "answer-wrap";
@@ -506,9 +547,12 @@
     wrap.appendChild(label);
     var row = document.createElement("div");
     row.className = "answer-row";
-    correctCells.forEach(function (dots) {
-      row.appendChild(buildCellElement(new Set(dots), { interactive: false }));
+    var groupEl = document.createElement("div");
+    groupEl.className = "cell-group";
+    correctGroups[gIdx].forEach(function (dots) {
+      groupEl.appendChild(buildCellElement(new Set(dots), { interactive: false }));
     });
+    row.appendChild(groupEl);
     wrap.appendChild(row);
     answerWrap.appendChild(wrap);
   }
@@ -531,32 +575,36 @@
   function checkAnswer() {
     if (checked) return;
     checked = true;
-    var allCorrect;
     if (currentMode === "reading") {
       answerInput.disabled = true;
-      allCorrect = answerInput.value.trim() === currentWord;
-    } else {
-      cellsRow.classList.add("locked");
-      allCorrect = true;
-      var cellEls = cellsRow.querySelectorAll(".braille-cell");
-      cellEls.forEach(function (cellEl, idx) {
-        var ok = setsEqual(correctCells[idx], userCells[idx]);
-        cellEl.classList.add(ok ? "correct" : "wrong");
-        if (!ok) allCorrect = false;
-      });
-    }
-    if (allCorrect) {
-      stats.correct++;
-      correctCountEl.textContent = stats.correct;
-      feedback.textContent = "正解です!";
-      feedback.className = "feedback correct";
-    } else {
-      feedback.textContent = "不正解…下に正しい答えを表示しています。";
-      feedback.className = "feedback wrong";
-      if (currentMode === "reading") {
-        showTextAnswer();
+      var allCorrect = answerInput.value.trim() === currentWord;
+      if (allCorrect) {
+        stats.correct++;
+        correctCountEl.textContent = stats.correct;
+        feedback.textContent = "正解です!";
+        feedback.className = "feedback correct";
       } else {
-        showAnswer();
+        feedback.textContent = "不正解…下に正しい答えを表示しています。";
+        feedback.className = "feedback wrong";
+        showTextAnswer();
+      }
+    } else {
+      var groupEl = cellsRow.children[0];
+      var cellEls = groupEl.querySelectorAll(".braille-cell");
+      var group = correctGroups[activeGroupIndex];
+      var groupOk = true;
+      group.forEach(function (correctDots, cIdx) {
+        var ok = setsEqual(correctDots, userCells[activeGroupIndex][cIdx]);
+        cellEls[cIdx].classList.add(ok ? "correct" : "wrong", "locked-cell");
+        if (!ok) groupOk = false;
+      });
+      if (groupOk) {
+        feedback.textContent = (activeGroupIndex + 1) + "文字目: 正解!";
+        feedback.className = "feedback correct";
+      } else {
+        feedback.textContent = (activeGroupIndex + 1) + "文字目: 不正解…下に正しい点字を表示しています。";
+        feedback.className = "feedback wrong";
+        showAnswerForGroup(activeGroupIndex);
       }
     }
     checkBtn.disabled = true;
@@ -574,42 +622,76 @@
       answerInput.focus();
       return;
     }
-    cellsRow.classList.remove("locked");
-    cellsRow.querySelectorAll(".braille-cell").forEach(function (c) {
-      c.classList.remove("correct", "wrong");
+    var groupEl = cellsRow.children[0];
+    groupEl.querySelectorAll(".braille-cell").forEach(function (cellEl, cIdx) {
+      cellEl.classList.remove("correct", "wrong", "locked-cell");
+      cellEl.querySelectorAll(".dot").forEach(function (d) {
+        d.classList.remove("on");
+        d.setAttribute("aria-pressed", "false");
+      });
+      userCells[activeGroupIndex][cIdx] = new Set();
     });
-    cellsRow.querySelectorAll(".dot").forEach(function (d) {
-      d.classList.remove("on");
-      d.setAttribute("aria-pressed", "false");
+  }
+
+  function totalCellCount() {
+    return correctGroups.reduce(function (sum, g) { return sum + g.length; }, 0);
+  }
+
+  function updateNextBtnLabel() {
+    if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
+      nextBtn.textContent = "次の文字 →";
+    } else if (questionIndex === QUIZ_LENGTH - 1) {
+      nextBtn.textContent = "結果を見る";
+    } else {
+      nextBtn.textContent = "次の問題 →";
+    }
+  }
+
+  // Highlights the piece of the displayed word/number that matches the character
+  // currently being input. Spaces don't count toward the group index since they
+  // aren't part of correctGroups (see wordToGroups).
+  function renderWordDisplay() {
+    wordDisplay.innerHTML = "";
+    var groupCounter = 0;
+    displayTokens.forEach(function (tok) {
+      var span = document.createElement("span");
+      span.textContent = tok;
+      if (tok !== " ") {
+        if (groupCounter === activeGroupIndex) span.classList.add("active-char");
+        groupCounter++;
+      }
+      wordDisplay.appendChild(span);
     });
-    userCells = correctCells.map(function () { return new Set(); });
   }
 
   function loadQuestion() {
     var word = quizWords[questionIndex];
     currentWord = word;
-    correctCells = (currentMode === "number") ? numberToCells(word) : wordToCells(word);
+    correctGroups = (currentMode === "number") ? numberToGroups(word) : wordToGroups(word);
+    displayTokens = (currentMode === "number") ? numberToDisplayTokens(word) : wordToDisplayTokens(word);
     checked = false;
+    activeGroupIndex = 0;
+    wordHasMistake = false;
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
     checkBtn.disabled = false;
     questionNumEl.textContent = questionIndex + 1;
-    nextBtn.textContent = (questionIndex === QUIZ_LENGTH - 1) ? "結果を見る" : "次の問題 →";
+    updateNextBtnLabel();
 
     if (currentMode === "reading") {
       wordDisplay.classList.add("hidden");
       answerInputWrap.classList.remove("hidden");
       answerInput.disabled = false;
       answerInput.value = "";
-      fitCellsToOneRow(correctCells.length);
+      fitCellsToOneRow(totalCellCount(), correctGroups.length);
       renderCells(false);
       window.setTimeout(function () { answerInput.focus(); }, 0);
     } else {
       wordDisplay.classList.remove("hidden");
-      wordDisplay.textContent = word;
+      renderWordDisplay();
       answerInputWrap.classList.add("hidden");
-      fitCellsToOneRow(correctCells.length);
+      fitCellsToOneRow(totalCellCount(), correctGroups.length);
       renderCells(true);
     }
   }
@@ -630,15 +712,45 @@
     }
   }
 
+  function advanceToNextGroup() {
+    // The just-finished character's frames are discarded (not kept on screen) so the
+    // input row always shows only the character currently being entered.
+    if (cellsRow.querySelector(".braille-cell.wrong")) wordHasMistake = true;
+    activeGroupIndex++;
+    checked = false;
+    feedback.textContent = "";
+    feedback.className = "feedback";
+    answerWrap.innerHTML = "";
+    checkBtn.disabled = false;
+    cellsRow.innerHTML = "";
+    var groupEl = appendGroupElement(activeGroupIndex);
+    groupEl.querySelector(".dot").focus();
+    updateNextBtnLabel();
+    renderWordDisplay();
+  }
+
+  function handleAdvanceOrCheck() {
+    if (!checked) {
+      if (!checkBtn.disabled) checkAnswer();
+      return;
+    }
+    if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
+      advanceToNextGroup();
+      return;
+    }
+    if (currentMode !== "reading") {
+      var anyWrong = wordHasMistake || cellsRow.querySelector(".braille-cell.wrong") !== null;
+      if (!anyWrong) {
+        stats.correct++;
+        correctCountEl.textContent = stats.correct;
+      }
+    }
+    goToNextQuestion();
+  }
+
   checkBtn.addEventListener("click", checkAnswer);
   clearBtn.addEventListener("click", clearInput);
-  nextBtn.addEventListener("click", function () {
-    if (checked) {
-      goToNextQuestion();
-    } else {
-      checkAnswer();
-    }
-  });
+  nextBtn.addEventListener("click", handleAdvanceOrCheck);
 
   function goHome() {
     quizScreen.classList.add("hidden");
@@ -670,8 +782,8 @@
   homeDuringGameBtn.addEventListener("click", goHome);
 
   window.addEventListener("resize", function () {
-    if (!quizScreen.classList.contains("hidden") && correctCells.length) {
-      fitCellsToOneRow(correctCells.length);
+    if (!quizScreen.classList.contains("hidden") && correctGroups.length) {
+      fitCellsToOneRow(totalCellCount(), correctGroups.length);
     }
   });
 
@@ -681,11 +793,7 @@
     var activeEl = document.activeElement;
     if (activeEl === checkBtn || activeEl === clearBtn || activeEl === nextBtn || activeEl === homeDuringGameBtn) return;
     e.preventDefault();
-    if (checked) {
-      goToNextQuestion();
-    } else if (!checkBtn.disabled) {
-      checkAnswer();
-    }
+    handleAdvanceOrCheck();
   });
 })();
 </script>
