@@ -20,8 +20,10 @@
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    /* "safe" keeps content centered when it fits, but falls back to start-aligned
+       (instead of clipping the top, unreachable by scroll) once it overflows. */
+    align-items: safe center;
+    justify-content: safe center;
     background: linear-gradient(135deg, #eef2ff, #fdf4ff);
     font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
     color: #1f2937;
@@ -36,7 +38,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     font-size: 14px;
     color: #4338ca;
   }
@@ -60,14 +62,16 @@
     background: #fff;
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(79, 70, 229, 0.12);
-    padding: 22px 18px;
+    padding: 18px 16px;
     text-align: center;
+    max-width: 480px;
+    margin: 0 auto;
   }
   .word-display {
     font-size: clamp(24px, 7vw, 38px);
     font-weight: 700;
     letter-spacing: 0.08em;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
     color: #111827;
     overflow-wrap: anywhere;
   }
@@ -79,7 +83,7 @@
     gap: var(--cell-gap);
     overflow: hidden;
   }
-  .cells-row { margin-bottom: 14px; }
+  .cells-row { margin-bottom: 8px; }
   .cell-group { display: flex; gap: var(--within-gap); flex-shrink: 0; }
   .braille-cell {
     display: grid;
@@ -113,14 +117,30 @@
     outline: none;
   }
   .dot.on { background: #4338ca; border-color: #4338ca; color: transparent; }
+  /* On a wrong cell: a dot you should have pressed but didn't (missing dashed
+     blue ring), or a dot you pressed but shouldn't have (solid red). This lets
+     the correct answer be shown right on the cell you already answered with,
+     instead of opening a second frame next to it. */
+  .dot.missing { border: 2px dashed #3b82f6; background: #eff6ff; color: #2563eb; }
+  .dot.extra { background: #ef4444; border-color: #ef4444; color: transparent; }
   @media (hover: hover) and (pointer: fine) {
     .dot:hover { border-color: #818cf8; }
   }
   .braille-cell.locked-cell .dot { cursor: default; opacity: .85; }
-  .answer-wrap { margin-top: 2px; }
-  .answer-label { font-size: 12px; color: #6366f1; margin-bottom: 6px; font-weight: 600; }
+  /* Reserves space for the answer area up front so showing/hiding it never
+     resizes the card or shifts the input cells up. Content sits at the top of
+     the reserved box so it stays right under the braille cells above it. The
+     reserved height matches the short dot-legend; reading mode's taller text
+     answer needs more room, so loadQuestion() raises it via inline style for
+     that mode only, keeping the other modes' controls closer to the cells. */
+  #answerWrap { min-height: 24px; display: flex; flex-direction: column; justify-content: flex-start; }
+  .answer-wrap { margin-top: 0; }
+  .answer-label { font-size: 12px; color: #6366f1; margin-bottom: 4px; font-weight: 600; }
   .answer-row .dot { cursor: default; }
   .answer-text { font-size: 22px; font-weight: 700; color: #111827; }
+  .dot-legend { font-size: 13px; color: #6b7280; line-height: 1.4; text-align: center; }
+  .dot-legend .legend-missing { color: #2563eb; font-weight: 600; }
+  .dot-legend .legend-extra { color: #dc2626; font-weight: 600; }
   .answer-input-wrap { margin: 4px 0 14px; }
   .text-input {
     font-size: 18px;
@@ -139,12 +159,12 @@
     justify-content: center;
     gap: 10px;
     flex-wrap: wrap;
-    margin: 14px 0 6px;
+    margin: 6px 0 3px;
   }
   .btn {
     border: none;
     border-radius: 10px;
-    padding: 9px 18px;
+    padding: 9px 14px;
     font-size: 14px;
     cursor: pointer;
     background: #e5e7eb;
@@ -155,11 +175,14 @@
   }
   .btn-primary { background: #4338ca; color: #fff; }
   .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  /* checkBtn's label changes length (答え合わせ / 次の文字 / 次の問題 / 結果を見る) -
+     a fixed width keeps it (and the layout around it) from resizing as it does. */
+  #checkBtn { min-width: 100px; }
   @media (hover: hover) and (pointer: fine) {
     .btn:hover { transform: translateY(-1px); }
     .btn-primary:hover { background: #3730a3; }
   }
-  .feedback { min-height: 20px; font-size: 14px; font-weight: 600; margin-top: 6px; }
+  .feedback { min-height: 23px; font-size: 14px; font-weight: 600; margin-top: 3px; }
   .feedback.correct { color: #16a34a; }
   .feedback.wrong { color: #dc2626; }
   .hidden { display: none; }
@@ -177,9 +200,47 @@
   .results-title { margin: 0 0 4px; font-size: 20px; color: #111827; }
   .results-score { font-size: 22px; font-weight: 700; color: #4338ca; margin: 4px 0 24px; }
   .results-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .review-list {
+    margin-top: 20px;
+    text-align: left;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 14px;
+  }
+  .review-item { padding: 10px; border-radius: 12px; margin-bottom: 8px; background: #f9fafb; }
+  .review-item.correct { background: #f0fdf4; }
+  .review-item.wrong { background: #fef2f2; }
+  .review-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .review-q-num { font-size: 12px; color: #6b7280; font-weight: 600; flex-shrink: 0; }
+  .review-word { flex: 1; font-size: 17px; font-weight: 700; color: #111827; overflow-wrap: anywhere; }
+  .review-result-icon { font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  .review-item.correct .review-result-icon { color: #16a34a; }
+  .review-item.wrong .review-result-icon { color: #dc2626; }
+  .review-chars { display: flex; flex-wrap: wrap; gap: 8px; }
+  .review-char { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 8px; background: #fff; }
+  .review-char.correct { box-shadow: 0 0 0 1px #bbf7d0; }
+  .review-char.wrong { box-shadow: 0 0 0 1px #fecaca; }
+  .review-char-label { font-size: 13px; font-weight: 700; color: #111827; }
+  .review-compare { display: flex; gap: 10px; }
+  .review-compare-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .review-compare-label { font-size: 10px; color: #6b7280; }
+  .review-text-compare { font-size: 13px; color: #374151; line-height: 1.6; }
+  .mini-cell-group { display: flex; gap: 2px; }
+  .mini-cell {
+    display: grid;
+    grid-template-columns: repeat(2, 12px);
+    grid-template-rows: repeat(3, 12px);
+    gap: 1.5px;
+    padding: 3px;
+    border-radius: 5px;
+    background: #f3f4f6;
+  }
+  .mini-cell.correct { background: #dcfce7; }
+  .mini-cell.wrong { background: #fee2e2; }
+  .mini-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #c7c9d1; background: #fff; }
+  .mini-dot.on { background: #4338ca; border-color: #4338ca; }
   @media (max-width: 480px) {
     body { padding: 10px; }
-    .quiz-card { padding: 16px 12px; }
+    .quiz-card { padding: 14px 10px; }
     .home-card, .results-card { padding: 24px 16px; }
   }
 </style>
@@ -187,27 +248,28 @@
 <body>
 <div class="app">
   <header id="header">
-    <h1>点字学習クイズ</h1>
-    <p class="subtitle">点字を学んで身につけよう</p>
+    <h1>点字学習ゲーム</h1>
+    <p class="subtitle">点字を学ぼう</p>
   </header>
 
   <section id="homeScreen" class="home-card">
     <p class="home-text">
-      モードを選んでスタートしましょう。全10問です。
+      モードを選んでスタート。特訓モードは全ひらがなを一通り出題し、それ以外は全10問。
     </p>
     <div class="mode-buttons">
+      <button class="btn btn-primary btn-large" data-mode="training">特訓モード</button>
       <button class="btn btn-primary btn-large" data-mode="word">単語モード</button>
       <button class="btn btn-primary btn-large" data-mode="sentence">文章モード</button>
       <button class="btn btn-primary btn-large" data-mode="number">数字モード</button>
-      <button class="btn btn-primary btn-large" data-mode="reading">点字を読むモード</button>
+      <button class="btn btn-primary btn-large" data-mode="reading">読むモード</button>
     </div>
   </section>
 
   <div id="quizScreen" class="hidden">
     <div class="score-bar">
-      <button id="homeDuringGameBtn" class="link-btn">← ホームへ</button>
+      <button id="homeDuringGameBtn" class="link-btn">ホームへ</button>
       <div class="score-info">
-        <span>問題: <strong id="questionNum">1</strong> / 10</span>
+        <span>問題: <strong id="questionNum">1</strong> / <span id="questionTotal">10</span></span>
         <span>正解: <strong id="correctCount">0</strong></span>
       </div>
     </div>
@@ -224,9 +286,8 @@
       <div id="answerWrap"></div>
 
       <div class="controls">
-        <button id="checkBtn" class="btn btn-primary">答え合わせ</button>
         <button id="clearBtn" class="btn">クリア</button>
-        <button id="nextBtn" class="btn">次の問題 →</button>
+        <button id="checkBtn" class="btn btn-primary">答え合わせ</button>
       </div>
 
       <div class="feedback" id="feedback"></div>
@@ -240,6 +301,7 @@
       <button id="retryBtn" class="btn btn-primary btn-large">もう一度</button>
       <button id="homeBtn" class="btn btn-large">ホームへ</button>
     </div>
+    <div class="review-list" id="reviewList"></div>
   </section>
 </div>
 
@@ -317,12 +379,123 @@
     });
   });
 
+  // "Special sound" combinations (mostly for loanwords): a base kana plus a small
+  // ぁ/ぃ/ぇ/ぉ vowel, using either the special-sound marker (dots 2,6) or the
+  // existing youon/youhandaku/dakuten markers, depending on the sound.
+  var SPECIAL_SOUND = [2, 6];
+  var SPECIAL_SOUND_MAP = {
+    "うぃ": "い", "うぇ": "え", "うぉ": "お",
+    "くぁ": "か", "くぃ": "き", "くぇ": "け", "くぉ": "こ",
+    "つぁ": "た", "つぃ": "ち", "つぇ": "て", "つぉ": "と",
+    "とぅ": "つ",
+    "ふぁ": "は", "ふぃ": "ひ", "ふぇ": "へ", "ふぉ": "ほ"
+  };
+  Object.keys(SPECIAL_SOUND_MAP).forEach(function (combo) {
+    TOKENS[combo] = withMarker(SPECIAL_SOUND, SPECIAL_SOUND_MAP[combo]);
+  });
+
+  // Voiced version of the special-sound marker (dots 2,6 + the dakuten dot 5).
+  var SPECIAL_SOUND_DAKU = [2, 5, 6];
+  var SPECIAL_SOUND_DAKU_MAP = {
+    "ぐぁ": "か",
+    "どぅ": "つ",
+    "ゔぁ": "は", "ゔぃ": "ひ", "ゔぇ": "へ", "ゔぉ": "ほ"
+  };
+  Object.keys(SPECIAL_SOUND_DAKU_MAP).forEach(function (combo) {
+    TOKENS[combo] = withMarker(SPECIAL_SOUND_DAKU, SPECIAL_SOUND_DAKU_MAP[combo]);
+  });
+
+  var YOUON_EXTRA_MAP = { "いぇ": "え", "しぇ": "せ", "ちぇ": "て", "てぃ": "ち" };
+  Object.keys(YOUON_EXTRA_MAP).forEach(function (combo) {
+    TOKENS[combo] = withMarker(YOUON, YOUON_EXTRA_MAP[combo]);
+  });
+
+  // Voiced version of the above (youon marker + dakuten dot = the youdaku marker
+  // already used for ぎゃ/じゃ/ぢゃ/びゃ).
+  var YOUDAKU_EXTRA_MAP = { "じぇ": "せ", "でぃ": "ち" };
+  Object.keys(YOUDAKU_EXTRA_MAP).forEach(function (combo) {
+    TOKENS[combo] = withMarker(YOUDAKU, YOUDAKU_EXTRA_MAP[combo]);
+  });
+
+  TOKENS["てゅ"] = withMarker(YOUHANDAKU, "つ");
+  TOKENS["ふゅ"] = withMarker(YOUHANDAKU, "ゆ");
+
+  // Voiced version of てゅ/ふゅ (youhandaku marker + the dakuten dot = dots 4,5,6).
+  // でゅ is NOT the same marker as でぃ/ぢゅ (dots 4,5) - using that would make it
+  // indistinguishable from ぢゅ.
+  var YOUHANDAKU_DAKU = [4, 5, 6];
+  TOKENS["でゅ"] = withMarker(YOUHANDAKU_DAKU, "つ");
+  TOKENS["ゔゅ"] = withMarker(YOUHANDAKU_DAKU, "ゆ");
+  TOKENS["ゔ"] = withMarker(DAKUTEN, "う"); // ゔ (vu)
+
   var WORDS = [
     "いぬ","ねこ","うさぎ","さかな","とり","ぞう","きりん","ぱんだ","らいおん","かえる",
     "つくえ","えんぴつ","ほん","かばん","がっこう","せんせい","としょかん","きょうしつ","でんしゃ","じてんしゃ",
     "ひこうき","くるま","しんぶん","たまご","りんご","ぶどう","みかん","すいか","たんじょうび","ともだち",
     "かぞく","げんき","ひゃく","しゃしん","きゃべつ","たんぽぽ","たいよう","つき","ほし","あめ",
-    "ゆき","かみなり","たいふう","やったー","ありがとう"
+    "ゆき","かみなり","たいふう","やったー","ありがとう",
+    // Trickier combinations: dakuten/youon (じゃ) and the special "loanword" sounds
+    // (ふぁ・うぃ・うぉ・てぃ・ちぇ・しぇ・いぇ・てゅ・つぁ・くぁ etc.), including their
+    // voiced forms (じぇ・でぃ・どぅ・でゅ・ぐぁ・ゔぁ行・ゔゅ・ふゅ).
+    "じゃむ","ふぁいる","うぃんく","うぉっか","てぃーしゃつ","ちぇろ","しぇあ",
+    "もーつぁると","とぅー","ふぃるむ","ふぇると","ふぉーく",
+    "じぇっとき","でぃすく","ひんどぅー","でゅえっと","ぐぁば","ふゅーじょん",
+    "ゔぁいおりん","ゔぃらん","ゔぇねつぃあ","ゔぉーかる",
+
+
+    // が行
+    "がくせい","ぎんこう","ぐんて","げた","ごりら",
+
+    // ざ行
+    "ざっし","じしょ","ずこう","ぜりー","ぞうきん",
+
+    // だ行
+    "だいこん","ちぢみ","かんづめ","でんき","どあ",
+
+    // ば行
+    "ばなな","びーる","ぶた","べんとう","ぼうし",
+
+    // ぱ行
+    "ぱん","ぴあの","ぷーる","ぺんぎん","ぽすと",
+
+    // にゃ行
+    "こんにゃく","にゅうがく","にょいぼう",
+
+    // ひゃ行
+    "ひゃっかてん","ひゅーすとん","ひょうし",
+
+    // びゃ行
+    "びゃくや","びゅっふぇ","びょういん",
+
+    // ぴゃ行
+    "はっぴゃく","ぴゅあ","かんぴょう",
+
+    // みゃ行
+    "みゃく","みゅーじあむ","みょうじ",
+
+    // りゃ行
+    "りゃく","りゅうせい","りょこう",
+
+    // ぎゃ行
+    "ぎゃくてん","ぎゅうにゅう","ぎょせん",
+
+    // じゃ行
+    "じゃがいも","じゅうしょ","じょせい",
+
+    // びゃ・ぴゃ・ぎゃ混在
+    "きょうりゅう","びょうき","ぎゅうどん",
+
+    // 特殊音
+    "つぇっぺりん",
+    "ふぁみりー","ふぃぎゅあ","ふぇにっくす","ふぉと",
+    
+
+    // 既存特殊音の補強
+    "しぇふ","ちぇす","じぇらーと","てぃらみす",
+    "でぃーぜる","でゅお","とぅないと",
+    "どぅー","ふゅーちゃー","うぇぶ","くぉーつ","まりとっつぉ"
+
+    // ぢゅぢょ"くぇすと","つぃーと","てゅーば","ゔゅー","くぃんてっと","くぁるてっと""いぇーがー",
   ];
 
   // Sentences use a space between words, just like real Japanese braille (which has no
@@ -333,7 +506,23 @@
     "とりが うたう", "かぜが ふく", "ゆきが つもる", "ほしが ひかる",
     "とりが とぶ", "うちへ いく", "ほんを よむ", "えを かく",
     "うたを うたう", "みずを のむ", "もちを たべる", "やまに のぼる",
-    "にわで はしる", "くるまに のる", "ねこが なく", "さかなが いる"
+    "にわで はしる", "くるまに のる", "ねこが なく", "さかなが いる",
+    "じゃむを たべる", "ふぁいるを みる", "ちぇろを ひく",
+    "いぬが ほえる", "ねこが あそぶ", "とりが ねむる", "はなが しおれる",
+    "くもが でる", "ほしが おおい", "つきが まるい", "みずが ながれる",
+    "こどもが あそぶ", "じぇっときが とぶ",
+    "ごはんを たべる", "えほんを よむ", "うたを きく", "てがみを かく",
+    "みかんを むく", "くつを はく", "ぼうしを かぶる", "かさを もつ",
+    "ぎゅうにゅうを のむ", "てぃーしゃつを きる", "ふぉーくを もつ", "うぃんくを する",
+    "がっこうに いく", "こうえんで あそぶ", "えきへ あるく", "にわに でる",
+    "やねに のぼる", "まちに すむ", "ひゃっかてんに いく",
+    "いぬと あそぶ", "ともだちと あるく",
+    "しぇふが つくる",
+    // 数字を含む文章
+    "いぬが 2ひき いる", "りんごが 3つ ある", "あさ7じに おきる",
+    "100てんを とる", "ねこが 4ひき あそぶ", "えんぴつが 5ほん ある",
+    "9じに ねる", "ともだちが 3にん くる", "2026ねんに なる",
+    "ばすが 8ふんで くる"
   ];
 
   // Digits reuse the dot patterns of braille letters a-j, preceded by a single
@@ -344,8 +533,13 @@
     "5": [1,5], "6": [1,2,4], "7": [1,2,4,5], "8": [1,2,5], "9": [2,4]
   };
   var NUMBERS = [
-    "3", "7", "9", "12", "15", "28", "34", "50", "63", "79",
-    "100", "123", "156", "200", "365", "480", "500", "999", "1000", "2024"
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "10", "12", "15", "21", "28", "34", "37", "46", "50", "58",
+    "63", "64", "79", "87", "91",
+    "100", "101", "123", "156", "200", "210", "314", "365", "480", "500",
+    "555", "678", "709", "840", "925", "999",
+    "1000", "1001", "1234", "1500", "1999", "2024", "2025", "2026", "3000", "4096",
+    "12345"
   ];
 
   // Each group is the set of braille cells for one input character: 1 cell for a
@@ -361,6 +555,8 @@
     return groups;
   }
 
+  function isDigit(tok) { return tok.length === 1 && tok >= "0" && tok <= "9"; }
+
   function tokenize(word) {
     var chars = Array.from(word);
     var tokens = [];
@@ -370,15 +566,29 @@
       if (TOKENS[two]) { tokens.push(two); i += 2; continue; }
       var one = chars[i];
       if (TOKENS[one]) { tokens.push(one); i += 1; continue; }
+      if (isDigit(one)) { tokens.push(one); i += 1; continue; }
       i += 1; // unknown character, skip
     }
     return tokens;
   }
 
   // Spaces between words (sentence mode) are skipped entirely - they're shown in the
-  // word display for readability but never need to be struck in braille.
+  // word display for readability but never need to be struck in braille. Digits are
+  // handled like numberToGroups(): the number sign only needs to precede the first
+  // digit of a run, so a digit only gets it when the previous token isn't a digit.
   function wordToGroups(word) {
-    return tokenize(word).filter(function (t) { return t !== " "; }).map(function (t) { return TOKENS[t]; });
+    var tokens = tokenize(word);
+    var groups = [];
+    tokens.forEach(function (tok, i) {
+      if (tok === " ") return;
+      if (isDigit(tok)) {
+        var startOfRun = i === 0 || !isDigit(tokens[i - 1]);
+        groups.push(startOfRun ? [NUMBER_SIGN, DIGIT_DOTS[tok]] : [DIGIT_DOTS[tok]]);
+      } else {
+        groups.push(TOKENS[tok]);
+      }
+    });
+    return groups;
   }
 
   // Text shown in the word display, split so each piece lines up 1-to-1 with the
@@ -409,10 +619,26 @@
   var feedback = document.getElementById("feedback");
   var checkBtn = document.getElementById("checkBtn");
   var clearBtn = document.getElementById("clearBtn");
-  var nextBtn = document.getElementById("nextBtn");
   var questionNumEl = document.getElementById("questionNum");
+  var questionTotalEl = document.getElementById("questionTotal");
   var correctCountEl = document.getElementById("correctCount");
   var resultsScoreEl = document.getElementById("resultsScore");
+  var reviewList = document.getElementById("reviewList");
+
+  // Reading mode answers must stay plain hiragana (plus the chōon mark "ー" used in
+  // words like "やったー") - if the IME commits a kanji/katakana conversion, strip it
+  // right back out. Skipped while e.isComposing so we don't fight the IME mid-keystroke;
+  // compositionend covers the case where the committed text needs cleanup.
+  var NON_HIRAGANA_RE = /[^ぁ-ゟー]/g;
+  function sanitizeAnswerInput() {
+    var clean = answerInput.value.replace(NON_HIRAGANA_RE, "");
+    if (clean !== answerInput.value) answerInput.value = clean;
+  }
+  answerInput.addEventListener("input", function (e) {
+    if (e.isComposing) return;
+    sanitizeAnswerInput();
+  });
+  answerInput.addEventListener("compositionend", sanitizeAnswerInput);
 
   var correctGroups = [];
   var displayTokens = [];
@@ -420,11 +646,15 @@
   var checked = false;
   var quizWords = [];
   var questionIndex = 0;
+  var sessionLength = QUIZ_LENGTH;
   var stats = { correct: 0 };
   var currentMode = "word";
   var currentWord = "";
   var activeGroupIndex = 0;
   var wordHasMistake = false;
+  var history = [];
+  var currentQuestionCharacters = [];
+  var lastReadingResult = null;
 
   function shuffle(arr) {
     var a = arr.slice();
@@ -537,24 +767,36 @@
     return arr.every(function (d) { return set.has(d); });
   }
 
-  function showAnswerForGroup(gIdx) {
+  // Maps a group index back to its visible text, skipping spaces the same way
+  // renderWordDisplay() does (spaces aren't part of correctGroups).
+  function labelForGroup(gIdx) {
+    var counter = 0;
+    for (var i = 0; i < displayTokens.length; i++) {
+      if (displayTokens[i] === " ") continue;
+      if (counter === gIdx) return displayTokens[i];
+      counter++;
+    }
+    return "";
+  }
+
+  // Snapshots the current (still on-screen) character's result for the review list,
+  // before its frames get discarded by advanceToNextGroup/loadQuestion.
+  function captureCurrentGroupResult(gIdx) {
+    var ok = cellsRow.querySelector(".braille-cell.wrong") === null;
+    return {
+      label: labelForGroup(gIdx),
+      correct: ok,
+      userDots: userCells[gIdx].map(function (set) { return Array.from(set); }),
+      correctDots: correctGroups[gIdx]
+    };
+  }
+
+  function showDotLegend() {
     answerWrap.innerHTML = "";
-    var wrap = document.createElement("div");
-    wrap.className = "answer-wrap";
-    var label = document.createElement("div");
-    label.className = "answer-label";
-    label.textContent = "正しい点字";
-    wrap.appendChild(label);
-    var row = document.createElement("div");
-    row.className = "answer-row";
-    var groupEl = document.createElement("div");
-    groupEl.className = "cell-group";
-    correctGroups[gIdx].forEach(function (dots) {
-      groupEl.appendChild(buildCellElement(new Set(dots), { interactive: false }));
-    });
-    row.appendChild(groupEl);
-    wrap.appendChild(row);
-    answerWrap.appendChild(wrap);
+    var legend = document.createElement("div");
+    legend.className = "dot-legend";
+    legend.innerHTML = "<span class=\"legend-missing\">青の点線</span>＝押し忘れた点　<span class=\"legend-extra\">赤</span>＝不要だった点";
+    answerWrap.appendChild(legend);
   }
 
   function showTextAnswer() {
@@ -578,13 +820,14 @@
     if (currentMode === "reading") {
       answerInput.disabled = true;
       var allCorrect = answerInput.value.trim() === currentWord;
+      lastReadingResult = { userAnswer: answerInput.value.trim(), correct: allCorrect };
       if (allCorrect) {
         stats.correct++;
         correctCountEl.textContent = stats.correct;
         feedback.textContent = "正解です!";
         feedback.className = "feedback correct";
       } else {
-        feedback.textContent = "不正解…下に正しい答えを表示しています。";
+        feedback.textContent = "不正解";
         feedback.className = "feedback wrong";
         showTextAnswer();
       }
@@ -594,25 +837,38 @@
       var group = correctGroups[activeGroupIndex];
       var groupOk = true;
       group.forEach(function (correctDots, cIdx) {
-        var ok = setsEqual(correctDots, userCells[activeGroupIndex][cIdx]);
+        var userSet = userCells[activeGroupIndex][cIdx];
+        var ok = setsEqual(correctDots, userSet);
         cellEls[cIdx].classList.add(ok ? "correct" : "wrong", "locked-cell");
-        if (!ok) groupOk = false;
+        if (!ok) {
+          groupOk = false;
+          // Mark the diff right on the cell you answered with, instead of opening
+          // a second cell next to it: dashed blue = should have been on, solid
+          // red = was on but shouldn't have been.
+          cellEls[cIdx].querySelectorAll(".dot").forEach(function (btn) {
+            var dotNum = parseInt(btn.textContent, 10);
+            var shouldBeOn = correctDots.indexOf(dotNum) !== -1;
+            var isOn = userSet.has(dotNum);
+            if (shouldBeOn && !isOn) btn.classList.add("missing");
+            else if (!shouldBeOn && isOn) btn.classList.add("extra");
+          });
+        }
       });
       if (groupOk) {
         feedback.textContent = (activeGroupIndex + 1) + "文字目: 正解!";
         feedback.className = "feedback correct";
       } else {
-        feedback.textContent = (activeGroupIndex + 1) + "文字目: 不正解…下に正しい点字を表示しています。";
+        feedback.textContent = (activeGroupIndex + 1) + "文字目: 不正解";
         feedback.className = "feedback wrong";
-        showAnswerForGroup(activeGroupIndex);
+        showDotLegend();
       }
     }
-    checkBtn.disabled = true;
+    updateActionBtnLabel();
   }
 
   function clearInput() {
     checked = false;
-    checkBtn.disabled = false;
+    updateActionBtnLabel();
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
@@ -626,7 +882,7 @@
     groupEl.querySelectorAll(".braille-cell").forEach(function (cellEl, cIdx) {
       cellEl.classList.remove("correct", "wrong", "locked-cell");
       cellEl.querySelectorAll(".dot").forEach(function (d) {
-        d.classList.remove("on");
+        d.classList.remove("on", "missing", "extra");
         d.setAttribute("aria-pressed", "false");
       });
       userCells[activeGroupIndex][cIdx] = new Set();
@@ -645,13 +901,17 @@
     return correctGroups.reduce(function (max, g) { return Math.max(max, g.length); }, 1);
   }
 
-  function updateNextBtnLabel() {
-    if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
-      nextBtn.textContent = "次の文字 →";
-    } else if (questionIndex === QUIZ_LENGTH - 1) {
-      nextBtn.textContent = "結果を見る";
+  // checkBtn doubles as the "advance" button: before checking it reads "答え合わせ";
+  // once checked, it relabels itself to whatever pressing it again would do next.
+  function updateActionBtnLabel() {
+    if (!checked) {
+      checkBtn.textContent = "答え合わせ";
+    } else if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
+      checkBtn.textContent = "次の文字";
+    } else if (questionIndex === sessionLength - 1) {
+      checkBtn.textContent = "結果を見る";
     } else {
-      nextBtn.textContent = "次の問題 →";
+      checkBtn.textContent = "次の問題";
     }
   }
 
@@ -680,12 +940,13 @@
     checked = false;
     activeGroupIndex = 0;
     wordHasMistake = false;
+    currentQuestionCharacters = [];
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
-    checkBtn.disabled = false;
+    answerWrap.style.minHeight = (currentMode === "reading") ? "61px" : "";
     questionNumEl.textContent = questionIndex + 1;
-    updateNextBtnLabel();
+    updateActionBtnLabel();
 
     if (currentMode === "reading") {
       wordDisplay.classList.add("hidden");
@@ -704,16 +965,109 @@
     }
   }
 
+  function buildMiniCellGroup(cells, stateClass) {
+    var groupEl = document.createElement("div");
+    groupEl.className = "mini-cell-group";
+    cells.forEach(function (dots) {
+      var cell = document.createElement("div");
+      cell.className = "mini-cell" + (stateClass ? " " + stateClass : "");
+      DOT_ORDER.forEach(function (dotNum) {
+        var dot = document.createElement("div");
+        dot.className = "mini-dot" + (dots.indexOf(dotNum) !== -1 ? " on" : "");
+        cell.appendChild(dot);
+      });
+      groupEl.appendChild(cell);
+    });
+    return groupEl;
+  }
+
+  function renderReview() {
+    reviewList.innerHTML = "";
+    history.forEach(function (entry, idx) {
+      var item = document.createElement("div");
+      item.className = "review-item " + (entry.correct ? "correct" : "wrong");
+
+      var headerEl = document.createElement("div");
+      headerEl.className = "review-item-header";
+      var qLabel = document.createElement("span");
+      qLabel.className = "review-q-num";
+      qLabel.textContent = "問題" + (idx + 1);
+      var wordLabel = document.createElement("span");
+      wordLabel.className = "review-word";
+      wordLabel.textContent = entry.word;
+      var icon = document.createElement("span");
+      icon.className = "review-result-icon";
+      icon.textContent = entry.correct ? "○" : "×";
+      headerEl.appendChild(qLabel);
+      headerEl.appendChild(wordLabel);
+      headerEl.appendChild(icon);
+      item.appendChild(headerEl);
+
+      if (entry.mode === "reading") {
+        if (!entry.correct) {
+          var textCompare = document.createElement("div");
+          textCompare.className = "review-text-compare";
+          textCompare.textContent = "回答: 「" + (entry.userAnswer || "（空欄）") + "」　正解: 「" + entry.word + "」";
+          item.appendChild(textCompare);
+        }
+      } else {
+        var charsEl = document.createElement("div");
+        charsEl.className = "review-chars";
+        entry.characters.forEach(function (ch) {
+          var charEl = document.createElement("div");
+          charEl.className = "review-char " + (ch.correct ? "correct" : "wrong");
+          var label = document.createElement("div");
+          label.className = "review-char-label";
+          label.textContent = ch.label;
+          charEl.appendChild(label);
+          if (ch.correct) {
+            var okLabel = document.createElement("div");
+            okLabel.className = "review-compare-label";
+            okLabel.textContent = "回答";
+            charEl.appendChild(okLabel);
+            charEl.appendChild(buildMiniCellGroup(ch.correctDots, "correct"));
+          } else {
+            var compareEl = document.createElement("div");
+            compareEl.className = "review-compare";
+            var userCol = document.createElement("div");
+            userCol.className = "review-compare-col";
+            var userLabel = document.createElement("div");
+            userLabel.className = "review-compare-label";
+            userLabel.textContent = "回答";
+            userCol.appendChild(userLabel);
+            userCol.appendChild(buildMiniCellGroup(ch.userDots, "wrong"));
+            var correctCol = document.createElement("div");
+            correctCol.className = "review-compare-col";
+            var correctLabel = document.createElement("div");
+            correctLabel.className = "review-compare-label";
+            correctLabel.textContent = "正解";
+            correctCol.appendChild(correctLabel);
+            correctCol.appendChild(buildMiniCellGroup(ch.correctDots, "correct"));
+            compareEl.appendChild(userCol);
+            compareEl.appendChild(correctCol);
+            charEl.appendChild(compareEl);
+          }
+          charsEl.appendChild(charEl);
+        });
+        item.appendChild(charsEl);
+      }
+
+      reviewList.appendChild(item);
+    });
+  }
+
   function showResults() {
     quizScreen.classList.add("hidden");
     header.classList.remove("hidden");
-    resultsScoreEl.textContent = QUIZ_LENGTH + "問中 " + stats.correct + "問正解";
+    resultsScoreEl.textContent = sessionLength + "問中 " + stats.correct + "問正解";
+    renderReview();
     resultsScreen.classList.remove("hidden");
+    window.scrollTo(0, 0);
   }
 
   function goToNextQuestion() {
     questionIndex++;
-    if (questionIndex >= QUIZ_LENGTH) {
+    if (questionIndex >= sessionLength) {
       showResults();
     } else {
       loadQuestion();
@@ -722,24 +1076,26 @@
 
   function advanceToNextGroup() {
     // The just-finished character's frames are discarded (not kept on screen) so the
-    // input row always shows only the character currently being entered.
-    if (cellsRow.querySelector(".braille-cell.wrong")) wordHasMistake = true;
+    // input row always shows only the character currently being entered. Its result
+    // is snapshotted first so the results screen can still show it later.
+    var result = captureCurrentGroupResult(activeGroupIndex);
+    currentQuestionCharacters.push(result);
+    if (!result.correct) wordHasMistake = true;
     activeGroupIndex++;
     checked = false;
     feedback.textContent = "";
     feedback.className = "feedback";
     answerWrap.innerHTML = "";
-    checkBtn.disabled = false;
     cellsRow.innerHTML = "";
     var groupEl = appendGroupElement(activeGroupIndex);
     groupEl.querySelector(".dot").focus();
-    updateNextBtnLabel();
+    updateActionBtnLabel();
     renderWordDisplay();
   }
 
   function handleAdvanceOrCheck() {
     if (!checked) {
-      if (!checkBtn.disabled) checkAnswer();
+      checkAnswer();
       return;
     }
     if (currentMode !== "reading" && activeGroupIndex < correctGroups.length - 1) {
@@ -747,38 +1103,57 @@
       return;
     }
     if (currentMode !== "reading") {
-      var anyWrong = wordHasMistake || cellsRow.querySelector(".braille-cell.wrong") !== null;
+      var result = captureCurrentGroupResult(activeGroupIndex);
+      currentQuestionCharacters.push(result);
+      var anyWrong = wordHasMistake || !result.correct;
       if (!anyWrong) {
         stats.correct++;
         correctCountEl.textContent = stats.correct;
       }
+      history.push({ word: currentWord, mode: currentMode, correct: !anyWrong, characters: currentQuestionCharacters });
+    } else {
+      history.push({ word: currentWord, mode: "reading", correct: lastReadingResult.correct, userAnswer: lastReadingResult.userAnswer });
     }
     goToNextQuestion();
   }
 
-  checkBtn.addEventListener("click", checkAnswer);
+  checkBtn.addEventListener("click", handleAdvanceOrCheck);
   clearBtn.addEventListener("click", clearInput);
-  nextBtn.addEventListener("click", handleAdvanceOrCheck);
 
   function goHome() {
     quizScreen.classList.add("hidden");
     resultsScreen.classList.add("hidden");
     header.classList.remove("hidden");
     homeScreen.classList.remove("hidden");
+    window.scrollTo(0, 0);
   }
 
   function startQuiz(mode) {
     currentMode = mode;
-    var pool = mode === "sentence" ? SENTENCES : (mode === "number" ? NUMBERS : WORDS);
-    quizWords = shuffle(pool).slice(0, QUIZ_LENGTH);
+    var pool;
+    if (mode === "training") {
+      pool = Object.keys(TOKENS).filter(function (t) { return t !== " "; });
+    } else if (mode === "sentence") {
+      pool = SENTENCES;
+    } else if (mode === "number") {
+      pool = NUMBERS;
+    } else {
+      pool = WORDS;
+    }
+    // 点字特訓モードは全文字を一通り出題するため、10問の上限を設けない。
+    quizWords = mode === "training" ? shuffle(pool) : shuffle(pool).slice(0, QUIZ_LENGTH);
+    sessionLength = quizWords.length;
+    questionTotalEl.textContent = sessionLength;
     questionIndex = 0;
     stats = { correct: 0 };
+    history = [];
     correctCountEl.textContent = 0;
     homeScreen.classList.add("hidden");
     resultsScreen.classList.add("hidden");
     header.classList.add("hidden");
     quizScreen.classList.remove("hidden");
     loadQuestion();
+    window.scrollTo(0, 0);
   }
 
   modeButtons.forEach(function (btn) {
@@ -803,7 +1178,7 @@
     if (e.key !== "Enter") return;
     if (quizScreen.classList.contains("hidden")) return;
     var activeEl = document.activeElement;
-    if (activeEl === checkBtn || activeEl === clearBtn || activeEl === nextBtn || activeEl === homeDuringGameBtn) return;
+    if (activeEl === checkBtn || activeEl === clearBtn || activeEl === homeDuringGameBtn) return;
     e.preventDefault();
     handleAdvanceOrCheck();
   });
